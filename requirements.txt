@@ -5,3 +5,9 @@ Pillow
 huggingface_hub
 einops
 safetensors
+
+hydra_core==1.3.2
+iopath
+wcmatch
+tensorboard
+fvcore

@@ -14,6 +14,9 @@ import warnings
 from torch import Tensor
 from torch import nn
 import torch.nn.functional as F
+import torch
+from torch.nn.functional import scaled_dot_product_attention
+from torch.nn.attention import SDPBackend
 
 XFORMERS_AVAILABLE = False
 
@@ -87,6 +90,33 @@ class MemEffAttention(Attention):
 
         x = memory_efficient_attention(q, k, v, attn_bias=attn_bias)
         x = x.reshape([B, N, C])
+
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x
+
+
+class FlashAttentionRope(Attention):
+    def forward(self, x: Tensor, attn_bias=None, pos=None) -> Tensor:
+        B, N, C = x.shape
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).transpose(1, 3)
+
+        # q, k, v = unbind(qkv, 2)
+        q, k, v = [qkv[:,:,i] for i in range(3)]
+        q, k = self.q_norm(q).to(v.dtype), self.k_norm(k).to(v.dtype)
+
+        if self.rope is not None:
+            q = self.rope(q, pos)
+            k = self.rope(k, pos)
+
+        if q.dtype == torch.bfloat16:
+            with nn.attention.sdpa_kernel(SDPBackend.FLASH_ATTENTION):
+                x = scaled_dot_product_attention(q, k, v)
+        else:
+            with nn.attention.sdpa_kernel([SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION]):
+                x = scaled_dot_product_attention(q, k, v)
+
+        x = x.transpose(1, 2).reshape([B, N, C])
 
         x = self.proj(x)
         x = self.proj_drop(x)

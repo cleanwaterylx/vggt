@@ -7,7 +7,7 @@
 import argparse
 from hydra import initialize, compose
 from omegaconf import DictConfig, OmegaConf
-from trainer import Trainer
+from trainer_classification import Trainer
 
 
 def main():

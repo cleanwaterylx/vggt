@@ -13,6 +13,37 @@ from train_utils.general import check_and_fix_inf_nan
 from math import ceil, floor
 
 
+class ClassificationLoss(torch.nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+    def prepare_gt(self, gt):
+        labels = gt['labels']
+
+        return dict(
+            pos_neg_pair_labels=labels,
+        )
+    
+    def forward(self, predictions, batch):
+        total_loss = 0
+        loss_dict = {}
+        
+        gt = self.prepare_gt(batch)
+        logits = predictions['logits']  # [B, N] 
+        labels = gt['pos_neg_pair_labels']  # [B, N], 1 for positive, 0 for negative
+
+        # target = self.make_target(labels)  # [B]
+
+        classification_loss = F.binary_cross_entropy_with_logits(logits, labels.float())
+        
+        total_loss = total_loss + classification_loss
+        loss_dict.update({"loss_classification": classification_loss})
+        
+        loss_dict["objective"] = total_loss
+        
+        return loss_dict
+    
+
 @dataclass(eq=False)
 class MultitaskLoss(torch.nn.Module):
     """

@@ -234,6 +234,96 @@ class BaseDataset(Dataset):
             track,
         )
 
+    def process_one_image_no_extri(
+        self,
+        image,
+        depth_map,
+        intri_opencv,
+        original_size,
+        target_image_shape,
+        track=None,
+        filepath=None,
+        safe_bound=4,
+    ):
+        """
+        Process a single image and its associated data.
+
+        This method handles image transformations, depth processing, and coordinate conversions.
+
+        Args:
+            image (numpy.ndarray): Input image array
+            depth_map (numpy.ndarray): Depth map array
+            extri_opencv (numpy.ndarray): Extrinsic camera matrix (OpenCV convention)
+            intri_opencv (numpy.ndarray): Intrinsic camera matrix (OpenCV convention)
+            original_size (numpy.ndarray): Original image size [height, width]
+            target_image_shape (numpy.ndarray): Target image shape after processing
+            track (numpy.ndarray, optional): Optional tracking information. Defaults to None.
+            filepath (str, optional): Optional file path for debugging. Defaults to None.
+            safe_bound (int, optional): Safety margin for cropping operations. Defaults to 4.
+
+        Returns:
+            tuple: (
+                image (numpy.ndarray): Processed image,
+                depth_map (numpy.ndarray): Processed depth map,
+                extri_opencv (numpy.ndarray): Updated extrinsic matrix,
+                intri_opencv (numpy.ndarray): Updated intrinsic matrix,
+                world_coords_points (numpy.ndarray): 3D points in world coordinates,
+                cam_coords_points (numpy.ndarray): 3D points in camera coordinates,
+                point_mask (numpy.ndarray): Boolean mask of valid points,
+                track (numpy.ndarray, optional): Updated tracking information
+            )
+        """
+        # Make copies to avoid in-place operations affecting original data
+        image = np.copy(image)
+        depth_map = np.copy(depth_map)
+        intri_opencv = np.copy(intri_opencv)
+        if track is not None:
+            track = np.copy(track)
+
+        # Apply random scale augmentation during training if enabled
+        if self.training and self.aug_scale:
+            random_h_scale, random_w_scale = np.random.uniform(
+                self.aug_scale[0], self.aug_scale[1], 2
+            )
+            # Avoid random padding by capping at 1.0
+            random_h_scale = min(random_h_scale, 1.0)
+            random_w_scale = min(random_w_scale, 1.0)
+            aug_size = original_size * np.array([random_h_scale, random_w_scale])
+            aug_size = aug_size.astype(np.int32)
+        else:
+            aug_size = original_size
+
+        # Move principal point to the image center and crop if necessary
+        image, depth_map, intri_opencv, track = crop_image_depth_and_intrinsic_by_pp(
+            image, depth_map, intri_opencv, aug_size, track=track, filepath=filepath,
+        )
+
+        original_size = np.array(image.shape[:2])  # update original_size
+        target_shape = target_image_shape
+
+
+        # Resize images and update intrinsics
+        if self.rescale:
+            image, depth_map, intri_opencv, track = resize_image_depth_and_intrinsic(
+                image, depth_map, intri_opencv, target_shape, original_size, track=track,
+                safe_bound=safe_bound,
+                rescale_aug=self.rescale_aug
+            )
+        else:
+            print("Not rescaling the images")
+
+        # Ensure final crop to target shape
+        image, depth_map, intri_opencv, track = crop_image_depth_and_intrinsic_by_pp(
+            image, depth_map, intri_opencv, target_shape, track=track, filepath=filepath, strict=True,
+        )
+
+        return (
+            image,
+            depth_map,
+            intri_opencv,
+            track,
+        )
+    
     def get_nearby_ids(self, ids, full_seq_num, expand_ratio=None, expand_range=None):
         """
         TODO: add the function to sample the ids by pose similarity ranking.

@@ -8,10 +8,11 @@ import torch
 import torch.nn as nn
 from huggingface_hub import PyTorchModelHubMixin  # used for model hub
 
-from vggt.models.aggregator import Aggregator
+from vggt.models.aggregator_classification import Aggregator
 from vggt.heads.camera_head import CameraHead
 from vggt.heads.dpt_head import DPTHead
 from vggt.heads.track_head import TrackHead
+from vggt.heads.classification_head import TransformerDecoder, ClassificationHead
 
 
 class VGGT(nn.Module, PyTorchModelHubMixin):
@@ -25,6 +26,13 @@ class VGGT(nn.Module, PyTorchModelHubMixin):
         self.point_head = DPTHead(dim_in=2 * embed_dim, output_dim=4, activation="inv_log", conf_activation="expp1") if enable_point else None
         self.depth_head = DPTHead(dim_in=2 * embed_dim, output_dim=2, activation="exp", conf_activation="expp1") if enable_depth else None
         self.track_head = TrackHead(dim_in=2 * embed_dim, patch_size=patch_size) if enable_track else None
+        self.classification_decoder = TransformerDecoder(
+                in_dim=2*embed_dim, 
+                dec_embed_dim=1024,
+                dec_num_heads=16,
+                out_dim=1024,
+            )
+        self.classification_head = ClassificationHead(dec_embed_dim=1024)
 
     def forward(self, images: torch.Tensor, query_points: torch.Tensor = None):
         """
@@ -54,11 +62,13 @@ class VGGT(nn.Module, PyTorchModelHubMixin):
         # If without batch dimension, add it
         if len(images.shape) == 4:
             images = images.unsqueeze(0)
+        
+        B, S, _, H, W = images.shape
             
         if query_points is not None and len(query_points.shape) == 2:
             query_points = query_points.unsqueeze(0)
 
-        aggregated_tokens_list, patch_start_idx = self.aggregator(images) # [L, B, S, P, C]
+        aggregated_tokens_list, patch_start_idx, pos = self.aggregator(images) # [L, B, S, P, C]
 
         predictions = {}
 
@@ -89,6 +99,11 @@ class VGGT(nn.Module, PyTorchModelHubMixin):
             predictions["track"] = track_list[-1]  # track of the last iteration
             predictions["vis"] = vis
             predictions["conf"] = conf
+            
+        if self.classification_head is not None:
+            classification_hidden = self.classification_decoder(aggregated_tokens_list[-1], pos=pos)
+            logits = self.classification_head(classification_hidden, S, patch_start_idx)
+            predictions["logits"] = logits
 
         if not self.training:
             predictions["images"] = images  # store the images for visualization during inference

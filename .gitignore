@@ -1,6 +1,9 @@
 .hydra/
 output/
 ckpt/
+.vscode/
+**/logs/
+**/pair_data/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 **/__pycache__/

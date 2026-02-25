@@ -208,6 +208,7 @@ class Aggregator(nn.Module):
             patch_tokens = patch_tokens["x_norm_patchtokens"]
 
         _, P, C = patch_tokens.shape
+        
 
         # Expand camera and register tokens to match batch size and sequence length
         camera_token = slice_expand_and_flatten(self.camera_token, B, S) # [B*S, 1, C]  1 != S-1
@@ -255,7 +256,7 @@ class Aggregator(nn.Module):
         del concat_inter
         del frame_intermediates
         del global_intermediates
-        return output_list, self.patch_start_idx
+        return output_list, self.patch_start_idx, pos.reshape(B*S, P, -1)
 
     def _process_frame_attention(self, tokens, B, S, P, C, frame_idx, pos=None):
         """
