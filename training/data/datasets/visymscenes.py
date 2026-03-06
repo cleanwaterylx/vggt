@@ -135,9 +135,9 @@ class VisymScenesDataset(BaseDataset):
 
         #  set image_0 as anchor ,idx random +- 5
         # todo random step or sample 
-        step = (img_per_seq - 4) // 4
-        idxs_1 = list(range(max(0, idx_1 - step), min(len(imgs_1), idx_1 + step + 1)))
-        idxs_2 = list(range(max(0, idx_2 - step), min(len(imgs_2), idx_2 + step + 1)))
+        #  dxs_2 = list(range(max(0, idx_2 - step), min(len(imgs_2), idx_2 + step + 1)))
+        # print(img_per_seq)
+        # print(img_per_seq)
         # print(img_per_seq)
         # print(len(idxs_1), len(idxs_2))
         
@@ -145,6 +145,58 @@ class VisymScenesDataset(BaseDataset):
         images = []
         original_sizes = []
         labels = []
+        
+        def sample_indices(center_idx, total_len, num_samples):
+            """
+            Sample num_samples indices centered around center_idx.
+            Prefer symmetric expansion (±1, ±2, ...).
+            """
+            if num_samples == 1:
+                return [center_idx]
+
+            indices = [center_idx]
+            offset = 1
+
+            while len(indices) < num_samples:
+                left = center_idx - offset
+                right = center_idx + offset
+
+                if left >= 0:
+                    indices.append(left)
+                    if len(indices) >= num_samples:
+                        break
+
+                if right < total_len:
+                    indices.append(right)
+                    if len(indices) >= num_samples:
+                        break
+
+                offset += 1
+
+            indices = sorted(indices)
+            return indices
+        
+        if img_per_seq == 2:
+            n1, n2 = 1, 1
+
+        elif img_per_seq == 3:
+            # randomly choose 2+1 or 1+2
+            if random.random() < 0.5:
+                n1, n2 = 2, 1
+            else:
+                n1, n2 = 1, 2
+
+        elif img_per_seq == 4:
+            # randomly choose among 3+1, 2+2, 1+3
+            choice = random.choice([(3,1), (2,2), (1,3)])
+            n1, n2 = choice
+
+        else:
+            raise ValueError(f"Unsupported img_per_seq={img_per_seq}")
+        
+        idxs_1 = sample_indices(idx_1, len(imgs_1), n1)
+        idxs_2 = sample_indices(idx_2, len(imgs_2), n2)
+        
         
         for i, idx_1 in enumerate(idxs_1):
             img_path = os.path.join(base_path1, imgs_1[idx_1])
@@ -190,11 +242,11 @@ class VisymScenesDataset(BaseDataset):
 
         set_name = "visymscenes"
         
-        combined = list(zip(images, original_sizes, labels))
+        # combined = list(zip(images, original_sizes, labels))
 
-        self._rng.shuffle(combined)
+        # self._rng.shuffle(combined)
         
-        images, original_sizes, labels = map(list, zip(*combined))
+        # images, original_sizes, labels = map(list, zip(*combined))
         
         batch = {
             "seq_name": set_name + "_" + seq_name,

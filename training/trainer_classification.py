@@ -559,8 +559,8 @@ class Trainer:
             batch = copy_data_to_device(batch, self.device, non_blocking=True)
             total_pair += batch['images'].shape[0]
             print('Total pair:', total_pair)
-            # print(len(batch))
-            # print(batch['images'].shape)
+            print(len(batch))
+            print(batch['images'].shape)
 
             accum_steps = self.accum_steps
 
@@ -728,7 +728,7 @@ class Trainer:
             if labels[0] == 0:
                 # Flip the labels if the first label is 0
                 labels = 1 - labels
-            # print(labels)
+            print(labels)
         
         return batch
 

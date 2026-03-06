@@ -25,7 +25,7 @@ data:
       debug: False
       get_nearby: True
       load_depth: True
-      img_nums: [4, 32]
+      img_nums: [2, 4]
       max_img_per_gpu: 48
       allow_duplicate_img: True
       repeat_batch: False
@@ -67,7 +67,7 @@ data:
       debug: False
       get_nearby: True
       load_depth: True
-      img_nums: [2, 12]
+      img_nums: [2, 4]
       allow_duplicate_img: True
 
       augs:
