@@ -3,21 +3,35 @@ from sklearn.metrics import average_precision_score, roc_auc_score, precision_re
 
 def draw_roc_curve(gts_preds_list):
     import matplotlib.pyplot as plt
-    from sklearn.metrics import roc_curve   
+    from sklearn.metrics import roc_curve, confusion_matrix
+    
+    # gts, preds = gts_preds_list[0]
+    # fpr, tpr, thresholds = roc_curve(gts, preds)
+    # plt.plot(fpr, tpr, label='vggt 3 ROC curve (AUC = {:.4f})'.format(roc_auc_score(gts, preds)))
     
     gts, preds = gts_preds_list[0]
     fpr, tpr, thresholds = roc_curve(gts, preds)
-    plt.plot(fpr, tpr, label='vggt 3 ROC curve (AUC = {:.4f})'.format(roc_auc_score(gts, preds)))
-    
+    plt.plot(fpr, tpr, label='vggt 3+1 ROC curve (AUC = {:.4f})'.format(roc_auc_score(gts, preds)))
+
+    threshold = 0.5
+    y_preds = (preds >= threshold).astype(int)
+
+    tn, fp, fn, tp = confusion_matrix(gts, y_preds).ravel()
+    print("TP:", tp)
+    print("FP:", fp)
+
     gts, preds = gts_preds_list[1]
     fpr, tpr, thresholds = roc_curve(gts, preds)
-    plt.plot(fpr, tpr, label='vggt 4 ROC curve (AUC = {:.4f})'.format(roc_auc_score(gts, preds)))
-    
-    gts, preds = gts_preds_list[2]
-    fpr, tpr, thresholds = roc_curve(gts, preds)
     plt.plot(fpr, tpr, label='doppelganger++ ROC curve (AUC = {:.4f})'.format(roc_auc_score(gts, preds)))
-    
-    
+
+    threshold = 0.5
+    y_preds = (np.array(preds) >= threshold).astype(int)
+
+    tn, fp, fn, tp = confusion_matrix(gts, y_preds).ravel()
+    print("TP:", tp)
+    print("FP:", fp)
+
+
     
     
     plt.plot([0, 1], [0, 1], 'k--')  # 添加对角线
@@ -33,15 +47,15 @@ def draw_pr_curve(gts_preds_list):
     # 多个pr曲线绘制
     import matplotlib.pyplot as plt
     
+    # gts, preds = gts_preds_list[0]
+    # precision, recall, thresholds = precision_recall_curve(gts, preds)
+    # plt.plot(recall, precision, label='vggt 3 PR curve (AP = {:.4f})'.format(average_precision_score(gts, preds)))
+    
     gts, preds = gts_preds_list[0]
     precision, recall, thresholds = precision_recall_curve(gts, preds)
-    plt.plot(recall, precision, label='vggt 3 PR curve (AP = {:.4f})'.format(average_precision_score(gts, preds)))
+    plt.plot(recall, precision, label='vggt 3+1 PR curve (AP = {:.4f})'.format(average_precision_score(gts, preds)))
     
     gts, preds = gts_preds_list[1]
-    precision, recall, thresholds = precision_recall_curve(gts, preds)
-    plt.plot(recall, precision, label='vggt 4 PR curve (AP = {:.4f})'.format(average_precision_score(gts, preds)))
-    
-    gts, preds = gts_preds_list[2]
     precision, recall, thresholds = precision_recall_curve(gts, preds)
     plt.plot(recall, precision, label='doppelganger++ PR curve (AP = {:.4f})'.format(average_precision_score(gts, preds)))
     
@@ -69,12 +83,12 @@ if __name__ == "__main__":
             else:
                 if p_i >= 0.5:
                     print(f"False Positive: pred={p_i}, gt={l_i}")
-    quit()
+    # quit()
     
     print(gts[:, 1:3], preds[:, 1:3])
     
-    draw_roc_curve([(gts[:, 2], preds[:, 2]), (gts[:, 3], preds[:, 3]), (data_dopp['gts'], data_dopp['preds'])])
-    draw_pr_curve([(gts[:, 2], preds[:, 2]), (gts[:, 3], preds[:, 3]), (data_dopp['gts'], data_dopp['preds'])])
+    draw_roc_curve([(1-gts[:, 3], 1-preds[:, 3]), (1-np.array(data_dopp['gts']), 1-np.array(data_dopp['preds']))])
+    draw_pr_curve([(gts[:, 3], preds[:, 3]), (data_dopp['gts'], data_dopp['preds'])])
     quit()
     
     # Extract predictions and ground truths

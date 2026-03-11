@@ -89,7 +89,7 @@ if __name__ == '__main__':
     model = VGGT(enable_point=False, enable_track=False)
     # weight = torch.load('ckpt/checkpoint.pt')['model'].keys()
     # vggt_weight = {k: v for k, v in torch.load('ckpt/checkpoint.pt')['model'].items() if k in model.state_dict()}
-    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_epoch4.pt', map_location=device)['model'])
+    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer012-1_epoch2.pt', map_location=device)['model'])
     model.to(device)
     model.eval()
     print(f"Model loaded")
@@ -140,8 +140,8 @@ if __name__ == '__main__':
             idxs_1 = [idx_1]
             idxs_2 = list(range(max(0, idx_2), min(len(imgs_2), idx_2 + 2)))
         else:
-            idxs_1 = list(range(max(0, idx_1-1), min(len(imgs_1), idx_1 + 2)))
-            idxs_2 = list(range(max(0, idx_2), min(len(imgs_2), idx_2 + 1)))
+            idxs_1 = list(range(max(0, idx_1-1), min(len(imgs_1), idx_1 + 1)))
+            idxs_2 = list(range(max(0, idx_2-1), min(len(imgs_2), idx_2 + 1)))
         
         selected_imgs = [os.path.join(base_path1, imgs_1[j]) for j in idxs_1]
         labels = [1] * len(selected_imgs)
@@ -174,8 +174,8 @@ if __name__ == '__main__':
         # print(labels)
         # input()
         
-        if labels[0] == 1 and labels[1] == 1 and labels[2] == 1 and labels[3] == 0:
-            if pred[0] >= 0.5 and pred[1] >= 0.5 and pred[2] >= 0.5 and pred[3] < 0.5:
+        if labels[0] == 1 and labels[1] == 1 and labels[2] == 0 and labels[3] == 0:
+            if pred[0] >= 0.5 and pred[1] >= 0.5 and pred[2] < 0.5 and pred[3] < 0.5:
                 all_true += 1
             else:
                 not_all_true += 1
@@ -203,7 +203,7 @@ if __name__ == '__main__':
     # print(f'TP: {tp}, FP: {fp}, TN: {tn}, FN: {fn}')
     # np.save('test_logits_visym.npy', logits)
     # np.save('test_gts_visym.npy', gts)
-    # np.save('vggt_four_img.npy', {'logits': logits, 'gts': gts, 'preds': preds})
+    np.save('vggt_fourimg_add13_layer012-1_epoch2_22.npy', {'logits': logits, 'gts': gts, 'preds': preds})
     
         
         

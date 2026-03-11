@@ -27,7 +27,7 @@ class VGGT(nn.Module, PyTorchModelHubMixin):
         self.depth_head = DPTHead(dim_in=2 * embed_dim, output_dim=2, activation="exp", conf_activation="expp1") if enable_depth else None
         self.track_head = TrackHead(dim_in=2 * embed_dim, patch_size=patch_size) if enable_track else None
         self.classification_decoder = TransformerDecoder(
-                in_dim=2*embed_dim, 
+                in_dim=embed_dim, 
                 dec_embed_dim=1024,
                 dec_num_heads=16,
                 out_dim=1024,
@@ -68,7 +68,7 @@ class VGGT(nn.Module, PyTorchModelHubMixin):
         if query_points is not None and len(query_points.shape) == 2:
             query_points = query_points.unsqueeze(0)
 
-        aggregated_tokens_list, patch_start_idx, pos = self.aggregator(images) # [L, B, S, P, C]
+        aggregated_tokens_list, patch_start_idx, pos, original_tokens = self.aggregator(images) # [L, B, S, P, C]
 
         predictions = {}
 
@@ -101,7 +101,12 @@ class VGGT(nn.Module, PyTorchModelHubMixin):
             predictions["conf"] = conf
             
         if self.classification_head is not None:
-            classification_hidden = self.classification_decoder(aggregated_tokens_list[-1], pos=pos)
+            # concat origin_token with even layers of aggregated_tokens_list, then decode with classification_decoder, finally predict with classification_head
+            # classification_tokens = torch.cat([original_tokens] + 
+            #                                   [aggregated_tokens_list[i] for i in range(0, len(aggregated_tokens_list), 4)], dim=-1)  # [B, S, P, C*(L/4+1)] C*25
+            classification_tokens = torch.cat([original_tokens] + 
+                                              [aggregated_tokens_list[0], aggregated_tokens_list[1], aggregated_tokens_list[2], aggregated_tokens_list[-1]], dim=-1)
+            classification_hidden = self.classification_decoder(classification_tokens, pos=pos)
             logits = self.classification_head(classification_hidden, S, patch_start_idx)
             predictions["logits"] = logits
 

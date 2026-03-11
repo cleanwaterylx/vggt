@@ -231,6 +231,8 @@ class Aggregator(nn.Module):
         # update P because we added special tokens
         _, P, C = tokens.shape
 
+        original_tokens = tokens.view(B, S, P, C)
+
         frame_idx = 0
         global_idx = 0
         output_list = []
@@ -256,7 +258,7 @@ class Aggregator(nn.Module):
         del concat_inter
         del frame_intermediates
         del global_intermediates
-        return output_list, self.patch_start_idx, pos.reshape(B*S, P, -1)
+        return output_list, self.patch_start_idx, pos.reshape(B*S, P, -1), original_tokens
 
     def _process_frame_attention(self, tokens, B, S, P, C, frame_idx, pos=None):
         """

@@ -246,41 +246,41 @@ if __name__ == '__main__':
     print(f"Using device: {device}")
     print(f"Using dtype: {dtype}")
     model = VGGT(enable_point=False, enable_track=False)
-    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_epoch4.pt', map_location=device)['model'])
+    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer012-1_epoch2.pt', map_location=device)['model'])
     model.to(device)
     model.eval()
     print(f"Model loaded")
 
-    # final_clusters = []
+    final_clusters = []
 
-    # for idx, cluster in enumerate(clusters_sorted):
+    for idx, cluster in enumerate(clusters_sorted):
 
-    #     cluster = sorted(cluster)
+        cluster = sorted(cluster)
 
-    #     if len(cluster) < 4:
-    #         print(f"Cluster {idx} too small, skipping...")
-    #         final_clusters.append(cluster)
-    #         continue
+        if len(cluster) < 4:
+            print(f"Cluster {idx} too small, skipping...")
+            final_clusters.append(cluster)
+            continue
 
-    #     subgraph = G.subgraph(cluster).copy()
+        subgraph = G.subgraph(cluster).copy()
 
-    #     print(f"\n==== Start Cluster {idx} ====")
+        print(f"\n==== Start Cluster {idx} ====")
 
-    #     recursive_split(subgraph, cluster, name, model, device, dtype)
+        recursive_split(subgraph, cluster, name, model, device, dtype)
 
-    # print("\nFinal clusters:")
-    # for c in final_clusters:
-    #     print(len(c), c)
+    print("\nFinal clusters:")
+    for c in final_clusters:
+        print(len(c), c)
 
-    # input()
+    input()
 
 
 
-    final_clusters = [['0005.jpg', '0006.jpg', '0007.jpg', '0008.jpg', '0009.jpg', '0010.jpg', '0011.jpg'], 
-                      ['0012.jpg', '0013.jpg', '0014.jpg', '0015.jpg', '0016.jpg', '0017.jpg', '0018.jpg'], 
-                      ['0000.jpg', '0001.jpg', '0002.jpg', '0003.jpg', '0004.jpg']]
+    # final_clusters = [['0005.jpg', '0006.jpg', '0007.jpg', '0008.jpg', '0009.jpg', '0010.jpg', '0011.jpg'], 
+    #                   ['0012.jpg', '0013.jpg', '0014.jpg', '0015.jpg', '0016.jpg', '0017.jpg', '0018.jpg'], 
+    #                   ['0000.jpg', '0001.jpg', '0002.jpg', '0003.jpg', '0004.jpg']]
     
-    print(f"Final clusters: ", final_clusters)
+    # print(f"Final clusters: ", final_clusters)
 
     with open(f'{name}/image_clusters_louvain.txt', 'w') as f:
         for idx, c in enumerate(final_clusters):
@@ -301,11 +301,16 @@ if __name__ == '__main__':
                     img1_neighbors_in_group1 = set(G.neighbors(img1)) & set(group_1)
                     img1_neighbors_in_group1_weight = {neighbor: G[img1][neighbor]['weight'] for neighbor in img1_neighbors_in_group1}
                     node1 = sorted(img1_neighbors_in_group1_weight.items(), key=lambda x: x[1], reverse=True)[0][0]
-                    node2 = sorted(img1_neighbors_in_group1_weight.items(), key=lambda x: x[1], reverse=True)[1][0]
+                    # node2 = sorted(img1_neighbors_in_group1_weight.items(), key=lambda x: x[1], reverse=True)[1][0]
                     
                     img2_neighbors_in_group2 = set(G.neighbors(img2)) & set(group_2)
                     img2_neighbors_in_group2_weight = {neighbor: G[img2][neighbor]['weight'] for neighbor in img2_neighbors_in_group2}
                     # node2 = sorted(img2_neighbors_in_group2_weight.items(), key=lambda x: x[1], reverse=True)[0][0]
+
+                    if len(img1_neighbors_in_group1) > 1:
+                        node2 = sorted(img1_neighbors_in_group1_weight.items(), key=lambda x: x[1], reverse=True)[1][0]
+                    else:
+                        node2 = sorted(img2_neighbors_in_group2_weight.items(), key=lambda x: x[1], reverse=True)[0][0]
 
                     # node4 = [node1, img1, img2, node2]
                     node4 = [node1, node2, img1, img2]
@@ -326,10 +331,10 @@ if __name__ == '__main__':
         pred = torch.sigmoid(pred).float().cpu().numpy() # [B, N] (0, 1)
         pred = pred.squeeze(0)
         print(node4, pred)
-        # if pred[2] < 0.7:
-        #     delete_edges.append((node4[1], node4[2]))
-        # else:
-        #     reserve_edges.append((node4[1], node4[2]))
+        if pred[3] < 0.9:
+            delete_edges.append((node4[2], node4[3]))
+        else:
+            reserve_edges.append((node4[2], node4[3]))
 
 
     with open(f'{name}/delete_edges_name.txt', 'w') as f:

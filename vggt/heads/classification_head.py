@@ -20,9 +20,13 @@ class TransformerDecoder(nn.Module):
         rope=None,
         need_project=True,
         use_checkpoint=False,
+        num_token_groups=9,   # 新增
     ):
         super().__init__()
 
+        self.num_token_groups = num_token_groups
+
+        # 如果 token 已经是 C 维，可以不需要 projection
         self.projects = nn.Linear(in_dim, dec_embed_dim) if need_project else nn.Identity()
         self.use_checkpoint = use_checkpoint
         
@@ -43,23 +47,39 @@ class TransformerDecoder(nn.Module):
                 ffn_layer=Mlp,
                 init_values=None,
                 qk_norm=False,
-                # attn_class=MemEffAttentionRope,
                 attn_class=FlashAttentionRope,
                 rope=rope
-            ) for _ in range(depth)])
+            ) for _ in range(depth)
+        ])
 
         self.linear_out = nn.Linear(dec_embed_dim, out_dim)
 
     def forward(self, hidden, pos=None):
-        B, S, P, C = hidden.shape
-        hidden = hidden.view(B*S, P, C)  # (B*S, P, C)
+        """
+        hidden: [B, S, P, 25*C]
+        """
+        B, S, P, C_all = hidden.shape
+        C = C_all // self.num_token_groups
+
+        # 把 concat 的 feature 还原成 token
+        hidden = hidden.view(B, S, P, self.num_token_groups, C)
+
+        # 合并 patch 和 group
+        hidden = hidden.reshape(B, S, P * self.num_token_groups, C)
+
+        # transformer batch
+        hidden = hidden.view(B * S, P * self.num_token_groups, C)
+
         hidden = self.projects(hidden)
+
         for i, blk in enumerate(self.blocks):
             if self.use_checkpoint and self.training:
                 hidden = checkpoint(blk, hidden, pos=pos, use_reentrant=False)
             else:
                 hidden = blk(hidden, pos=pos)
+
         out = self.linear_out(hidden)
+
         return out
 
 class ClassificationHead(nn.Module):
