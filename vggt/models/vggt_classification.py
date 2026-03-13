@@ -12,7 +12,7 @@ from vggt.models.aggregator_classification import Aggregator
 from vggt.heads.camera_head import CameraHead
 from vggt.heads.dpt_head import DPTHead
 from vggt.heads.track_head import TrackHead
-from vggt.heads.classification_head import TransformerDecoder, ClassificationHead
+from vggt.heads.classification_head import TransformerDecoder, ClassificationHead, TransformerDoppPred
 
 
 class VGGT(nn.Module, PyTorchModelHubMixin):
@@ -26,13 +26,14 @@ class VGGT(nn.Module, PyTorchModelHubMixin):
         self.point_head = DPTHead(dim_in=2 * embed_dim, output_dim=4, activation="inv_log", conf_activation="expp1") if enable_point else None
         self.depth_head = DPTHead(dim_in=2 * embed_dim, output_dim=2, activation="exp", conf_activation="expp1") if enable_depth else None
         self.track_head = TrackHead(dim_in=2 * embed_dim, patch_size=patch_size) if enable_track else None
-        self.classification_decoder = TransformerDecoder(
-                in_dim=embed_dim, 
-                dec_embed_dim=1024,
-                dec_num_heads=16,
-                out_dim=1024,
-            )
-        self.classification_head = ClassificationHead(dec_embed_dim=1024)
+        # self.classification_decoder = TransformerDecoder(
+        #         in_dim=embed_dim, 
+        #         dec_embed_dim=1024,
+        #         dec_num_heads=16,
+        #         out_dim=1024,
+        #     )
+        # self.classification_head = ClassificationHead(dec_embed_dim=1024)
+        self.classification_dopp_head = TransformerDoppPred(dec_embed_dim=768)
 
     def forward(self, images: torch.Tensor, query_points: torch.Tensor = None):
         """
@@ -100,18 +101,22 @@ class VGGT(nn.Module, PyTorchModelHubMixin):
             predictions["vis"] = vis
             predictions["conf"] = conf
             
-        if self.classification_head is not None:
-            # concat origin_token with even layers of aggregated_tokens_list, then decode with classification_decoder, finally predict with classification_head
-            # classification_tokens = torch.cat([original_tokens] + 
-            #                                   [aggregated_tokens_list[i] for i in range(0, len(aggregated_tokens_list), 4)], dim=-1)  # [B, S, P, C*(L/4+1)] C*25
-            classification_tokens = torch.cat([original_tokens] + 
-                                              [aggregated_tokens_list[0], aggregated_tokens_list[1], aggregated_tokens_list[2], aggregated_tokens_list[-1]], dim=-1)
-            classification_hidden = self.classification_decoder(classification_tokens, pos=pos)
-            logits = self.classification_head(classification_hidden, S, patch_start_idx)
-            predictions["logits"] = logits
+        # if self.classification_head is not None:
+        #     # concat origin_token with even layers of aggregated_tokens_list, then decode with classification_decoder, finally predict with classification_head
+        #     # classification_tokens = torch.cat([original_tokens] + 
+        #     #                                   [aggregated_tokens_list[i] for i in range(0, len(aggregated_tokens_list), 4)], dim=-1)  # [B, S, P, C*(L/4+1)] C*25
+        #     # classification_tokens = torch.cat([original_tokens] + 
+        #     #                                   [aggregated_tokens_list[0], aggregated_tokens_list[1], aggregated_tokens_list[2], aggregated_tokens_list[-1]], dim=-1)
+        #     classification_hidden = self.classification_decoder(classification_tokens, pos=pos)
+        #     logits = self.classification_head(classification_hidden, S, patch_start_idx)
+        #     predictions["logits"] = logits
+        if self.classification_dopp_head is not None:
+            classification_tokens = torch.cat([aggregated_tokens_list[0],aggregated_tokens_list[5], 
+                                               aggregated_tokens_list[11], aggregated_tokens_list[17], aggregated_tokens_list[23]], dim=-2)  # [B, S, P*L, C]
+            classification_logits = self.classification_dopp_head(classification_tokens)
+            predictions["logits"] = classification_logits
 
         if not self.training:
             predictions["images"] = images  # store the images for visualization during inference
 
         return predictions
-

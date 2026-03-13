@@ -246,7 +246,7 @@ if __name__ == '__main__':
     print(f"Using device: {device}")
     print(f"Using dtype: {dtype}")
     model = VGGT(enable_point=False, enable_track=False)
-    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer012-1_epoch2.pt', map_location=device)['model'])
+    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer05111723_epoch5_focalloss.pt', map_location=device)['model'])
     model.to(device)
     model.eval()
     print(f"Model loaded")
@@ -331,7 +331,7 @@ if __name__ == '__main__':
         pred = torch.sigmoid(pred).float().cpu().numpy() # [B, N] (0, 1)
         pred = pred.squeeze(0)
         print(node4, pred)
-        if pred[3] < 0.9:
+        if pred[3] < 0.8:
             delete_edges.append((node4[2], node4[3]))
         else:
             reserve_edges.append((node4[2], node4[3]))

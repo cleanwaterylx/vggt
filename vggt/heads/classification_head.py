@@ -124,3 +124,40 @@ class ClassificationHead(nn.Module):
 
         # return logits, feat
         return logits
+
+
+class TransformerDoppPred(nn.Module):
+    def __init__(self, dec_embed_dim):   
+        super().__init__()
+        encoder_layer = nn.TransformerEncoderLayer(dec_embed_dim, nhead=8, dim_feedforward=2048)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=3)
+        self.feat_proj = nn.Sequential(
+            nn.Linear(2048, 1024),
+            nn.ReLU(inplace=True),
+            nn.Linear(1024, dec_embed_dim)
+        )
+        self.proj = nn.Linear(dec_embed_dim, 1)
+        
+    
+    def forward(self, concat_tokens):
+        # concat_tokens: [B, S, P*L, C]
+        # print("Concat tokens shape:", concat_tokens.shape)
+        # input()
+        concat_tokens = self.feat_proj(concat_tokens)  # [B, S, P*L, dec_embed_dim]
+
+        B, S, T, C = concat_tokens.shape
+
+        x = concat_tokens.reshape(B * S, T, C)   # [B*S, T, C]
+        x = x.permute(1, 0, 2)                   # [T, B*S, C]
+
+        x = self.transformer_encoder(x)
+
+        x = x.permute(1, 0, 2)                   # [B*S, T, C]
+
+        pooled = x.max(dim=1)[0]                 # [B*S, C]
+
+        score = self.proj(pooled)                # [B*S, 1]
+
+        score = score.view(B, S, 1).squeeze(-1)              # [B, S, 1]
+
+        return score

@@ -1,6 +1,7 @@
 .hydra/
 output/
 ckpt/
+result/
 .vscode/
 **/logs/
 **/pair_data/

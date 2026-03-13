@@ -8,7 +8,7 @@ seed_value: 42
 accum_steps: 1    # We did not use gradient accumulation in our training, while if you suffer from OOM, you can try to use it.
 patch_size: 14
 val_epoch_freq: 1
-max_img_per_gpu: 8
+max_img_per_gpu: 32
 
 limit_train_batches: 800
 limit_val_batches: 400
@@ -79,7 +79,7 @@ checkpoint:
 
 
 loss:
-  _target_: loss.ClassificationLoss  
+  _target_: loss.ClassificationLocalLoss  
 
 
 optim:

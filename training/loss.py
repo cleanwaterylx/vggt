@@ -12,6 +12,60 @@ from vggt.utils.pose_enc import extri_intri_to_pose_encoding
 from train_utils.general import check_and_fix_inf_nan
 from math import ceil, floor
 
+class ClassificationLocalLoss(torch.nn.Module):
+    def __init__(self, gamma=1, alpha=None):
+        super().__init__()
+        self.gamma = gamma
+        self.alpha = alpha
+        
+    def prepare_gt(self, gt):
+        labels = gt['labels']
+        return dict(
+            pos_neg_pair_labels=labels,
+        )
+    
+    def forward(self, predictions, batch):
+        total_loss = 0
+        loss_dict = {}
+        
+        gt = self.prepare_gt(batch)
+        logits = predictions['logits']          # [B, N]
+        labels = gt['pos_neg_pair_labels'].float()  # [B, N]
+
+        # sigmoid probability
+        prob = torch.sigmoid(logits)
+
+        # pt
+        pt = prob * labels + (1 - prob) * (1 - labels)
+
+        # focal weight
+        focal_weight = (1 - pt) ** self.gamma
+
+        # BCE loss
+        bce_loss = F.binary_cross_entropy_with_logits(
+            logits,
+            labels,
+            reduction='none'
+        )
+
+        loss = focal_weight * bce_loss
+
+        # alpha balancing
+        if self.alpha is not None:
+            alpha_t = self.alpha * labels + (1 - self.alpha) * (1 - labels)
+            loss = alpha_t * loss
+
+        classification_loss = loss.mean()
+
+        total_loss = total_loss + classification_loss
+        loss_dict.update({
+            "loss_classification": classification_loss
+        })
+
+        loss_dict["objective"] = total_loss
+
+        return loss_dict
+
 
 class ClassificationLoss(torch.nn.Module):
     def __init__(self, *args, **kwargs):

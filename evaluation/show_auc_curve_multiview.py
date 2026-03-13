@@ -9,31 +9,16 @@ def draw_roc_curve(gts_preds_list):
     # fpr, tpr, thresholds = roc_curve(gts, preds)
     # plt.plot(fpr, tpr, label='vggt 3 ROC curve (AUC = {:.4f})'.format(roc_auc_score(gts, preds)))
     
-    gts, preds = gts_preds_list[0]
-    fpr, tpr, thresholds = roc_curve(gts, preds)
-    plt.plot(fpr, tpr, label='vggt 3+1 ROC curve (AUC = {:.4f})'.format(roc_auc_score(gts, preds)))
+    for pair in gts_preds_list:
+        gts, preds, label = pair
+        fpr, tpr, thresholds = roc_curve(gts, preds)
+        plt.plot(fpr, tpr, label=label + 'ROC curve (AUC = {:.4f})'.format(roc_auc_score(gts, preds)))
+        print(f"{label} Confusion Matrix:")
+        threshold = 0.5
+        y_preds = (preds >= threshold).astype(int)
+        tn, fp, fn, tp = confusion_matrix(gts, y_preds).ravel()
+        print(f"{label} TP: {tp}, FP: {fp}, TN: {tn}, FN: {fn}")
 
-    threshold = 0.5
-    y_preds = (preds >= threshold).astype(int)
-
-    tn, fp, fn, tp = confusion_matrix(gts, y_preds).ravel()
-    print("TP:", tp)
-    print("FP:", fp)
-
-    gts, preds = gts_preds_list[1]
-    fpr, tpr, thresholds = roc_curve(gts, preds)
-    plt.plot(fpr, tpr, label='doppelganger++ ROC curve (AUC = {:.4f})'.format(roc_auc_score(gts, preds)))
-
-    threshold = 0.5
-    y_preds = (np.array(preds) >= threshold).astype(int)
-
-    tn, fp, fn, tp = confusion_matrix(gts, y_preds).ravel()
-    print("TP:", tp)
-    print("FP:", fp)
-
-
-    
-    
     plt.plot([0, 1], [0, 1], 'k--')  # 添加对角线
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
@@ -70,25 +55,21 @@ def draw_pr_curve(gts_preds_list):
 
 if __name__ == "__main__":
     # Load the data from the .npy file
-    data_vggt_four_img = np.load('vggt_four_img_eval_four_img.npy', allow_pickle=True).item()
+    data_vggt_four_img_1 = np.load('vggt_fourimg_add13_layer05111723_epoch1_focalloss_31.npy', allow_pickle=True).item()
+    data_vggt_four_img_2 = np.load('vggt_fourimg_add13_layer05111723_epoch2_focalloss_31.npy', allow_pickle=True).item()
+    data_vggt_four_img_3 = np.load('vggt_fourimg_add13_layer05111723_epoch3_focalloss_31.npy', allow_pickle=True).item()
+    data_vggt_four_img_4 = np.load('vggt_fourimg_add13_layer05111723_epoch4_focalloss_31.npy', allow_pickle=True).item()
+    data_vggt_four_img_5 = np.load('vggt_fourimg_add13_layer05111723_epoch5_focalloss_31.npy', allow_pickle=True).item()
     data_dopp = np.load('../doppelgangers-plusplus/eval_visym_ap0.9917_auc0.9902_prec85_1.0000_recall95_0.9130.npy', allow_pickle=True).item()
-    gts = np.array(data_vggt_four_img['gts'])
-    preds = np.array(data_vggt_four_img['preds'])
     
-    for p, l in zip(preds, gts):
-        for p_i, l_i in zip(p, l):
-            if l_i >= 0.5:
-                if p_i < 0.5:
-                    print(f"False Negative: pred={p_i}, gt={l_i}")
-            else:
-                if p_i >= 0.5:
-                    print(f"False Positive: pred={p_i}, gt={l_i}")
-    # quit()
     
-    print(gts[:, 1:3], preds[:, 1:3])
-    
-    draw_roc_curve([(1-gts[:, 3], 1-preds[:, 3]), (1-np.array(data_dopp['gts']), 1-np.array(data_dopp['preds']))])
-    draw_pr_curve([(gts[:, 3], preds[:, 3]), (data_dopp['gts'], data_dopp['preds'])])
+    draw_roc_curve([(np.array(data_vggt_four_img_1['gts'])[:, 3], np.array(data_vggt_four_img_1['preds'])[:, 3], 'vggt epoch1 '),
+                    (np.array(data_vggt_four_img_2['gts'])[:, 3], np.array(data_vggt_four_img_2['preds'])[:, 3], 'vggt epoch2 '),
+                    (np.array(data_vggt_four_img_3['gts'])[:, 3], np.array(data_vggt_four_img_3['preds'])[:, 3], 'vggt epoch3 '),
+                    (np.array(data_vggt_four_img_4['gts'])[:, 3], np.array(data_vggt_four_img_4['preds'])[:, 3], 'vggt epoch4 '),
+                    (np.array(data_vggt_four_img_5['gts'])[:, 3], np.array(data_vggt_four_img_5['preds'])[:, 3], 'vggt epoch5 '),
+                     (np.array(data_dopp['gts']), np.array(data_dopp['preds']), 'doppelganger++ ')])
+    draw_pr_curve([(np.array(data_vggt_four_img_1['gts'])[:, 3], np.array(data_vggt_four_img_1['preds'])[:, 3], 'vggt epoch1 '), (data_dopp['gts'], data_dopp['preds'])])
     quit()
     
     # Extract predictions and ground truths
