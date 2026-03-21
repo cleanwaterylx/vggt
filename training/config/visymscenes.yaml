@@ -8,10 +8,10 @@ seed_value: 42
 accum_steps: 1    # We did not use gradient accumulation in our training, while if you suffer from OOM, you can try to use it.
 patch_size: 14
 val_epoch_freq: 1
-max_img_per_gpu: 32
+max_img_per_gpu: 16
 
-limit_train_batches: 800
-limit_val_batches: 400
+limit_train_batches: 50
+limit_val_batches: 10
 
 
 data:
@@ -136,7 +136,7 @@ optim:
 
 
 
-max_epochs: 20
+max_epochs: 30
 
 model:
   _target_: vggt.models.vggt_classification.VGGT

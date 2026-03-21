@@ -55,21 +55,28 @@ def draw_pr_curve(gts_preds_list):
 
 if __name__ == "__main__":
     # Load the data from the .npy file
-    data_vggt_four_img_1 = np.load('vggt_fourimg_add13_layer05111723_epoch1_focalloss_31.npy', allow_pickle=True).item()
-    data_vggt_four_img_2 = np.load('vggt_fourimg_add13_layer05111723_epoch2_focalloss_31.npy', allow_pickle=True).item()
-    data_vggt_four_img_3 = np.load('vggt_fourimg_add13_layer05111723_epoch3_focalloss_31.npy', allow_pickle=True).item()
-    data_vggt_four_img_4 = np.load('vggt_fourimg_add13_layer05111723_epoch4_focalloss_31.npy', allow_pickle=True).item()
-    data_vggt_four_img_5 = np.load('vggt_fourimg_add13_layer05111723_epoch5_focalloss_31.npy', allow_pickle=True).item()
+    # data_vggt_four_img_1 = np.load('vggt_fourimg_add13_layer05111723_epoch1_focalloss_31.npy', allow_pickle=True).item()
+    # data_vggt_four_img_2 = np.load('vggt_fourimg_add13_layer05111723_epoch2_focalloss_31.npy', allow_pickle=True).item()
+    # data_vggt_four_img_3 = np.load('vggt_fourimg_add13_layer05111723_epoch3_focalloss_31.npy', allow_pickle=True).item()
+    # data_vggt_four_img_4 = np.load('vggt_fourimg_add13_layer05111723_epoch4_focalloss_31.npy', allow_pickle=True).item()
+    # data_vggt_four_img_5 = np.load('vggt_fourimg_add13_layer05111723_epoch5_focalloss_31.npy', allow_pickle=True).item()
+    data_vggt_four_img_focalloss_3 = np.load('result/vggt_fourimg_add13_layer05111723_epoch3_focalloss_31.npy', allow_pickle=True).item()
+    data_vggt_four_img_focalloss_12 = np.load('result/vggt_fourimg_add13_layer05111723_epoch12_focalloss_dopp_adam_31.npy', allow_pickle=True).item()
     data_dopp = np.load('../doppelgangers-plusplus/eval_visym_ap0.9917_auc0.9902_prec85_1.0000_recall95_0.9130.npy', allow_pickle=True).item()
     
     
-    draw_roc_curve([(np.array(data_vggt_four_img_1['gts'])[:, 3], np.array(data_vggt_four_img_1['preds'])[:, 3], 'vggt epoch1 '),
-                    (np.array(data_vggt_four_img_2['gts'])[:, 3], np.array(data_vggt_four_img_2['preds'])[:, 3], 'vggt epoch2 '),
-                    (np.array(data_vggt_four_img_3['gts'])[:, 3], np.array(data_vggt_four_img_3['preds'])[:, 3], 'vggt epoch3 '),
-                    (np.array(data_vggt_four_img_4['gts'])[:, 3], np.array(data_vggt_four_img_4['preds'])[:, 3], 'vggt epoch4 '),
-                    (np.array(data_vggt_four_img_5['gts'])[:, 3], np.array(data_vggt_four_img_5['preds'])[:, 3], 'vggt epoch5 '),
+    # draw_roc_curve([(np.array(data_vggt_four_img_1['gts'])[:, 3], np.array(data_vggt_four_img_1['preds'])[:, 3], 'vggt epoch1 '),
+    #                 (np.array(data_vggt_four_img_2['gts'])[:, 3], np.array(data_vggt_four_img_2['preds'])[:, 3], 'vggt epoch2 '),
+    #                 (np.array(data_vggt_four_img_3['gts'])[:, 3], np.array(data_vggt_four_img_3['preds'])[:, 3], 'vggt epoch3 '),
+    #                 (np.array(data_vggt_four_img_4['gts'])[:, 3], np.array(data_vggt_four_img_4['preds'])[:, 3], 'vggt epoch4 '),
+    #                 (np.array(data_vggt_four_img_5['gts'])[:, 3], np.array(data_vggt_four_img_5['preds'])[:, 3], 'vggt epoch5 '),
+    #                  (np.array(data_dopp['gts']), np.array(data_dopp['preds']), 'doppelganger++ ')])
+    draw_roc_curve([(np.array(data_vggt_four_img_focalloss_3['gts'])[:, 3], np.array(data_vggt_four_img_focalloss_3['preds'])[:, 3], 'vggt epoch3 focal loss '),
+                    (np.array(data_vggt_four_img_focalloss_12['gts'])[:, 3], np.array(data_vggt_four_img_focalloss_12['preds'])[:, 3], 'vggt epoch12 focal loss '),
                      (np.array(data_dopp['gts']), np.array(data_dopp['preds']), 'doppelganger++ ')])
-    draw_pr_curve([(np.array(data_vggt_four_img_1['gts'])[:, 3], np.array(data_vggt_four_img_1['preds'])[:, 3], 'vggt epoch1 '), (data_dopp['gts'], data_dopp['preds'])])
+
+    draw_pr_curve([(np.array(data_vggt_four_img_focalloss_3['gts'])[:, 3], np.array(data_vggt_four_img_focalloss_3['preds'])[:, 3], 'vggt epoch3 focal loss '),
+                    (np.array(data_vggt_four_img_focalloss_12['gts'])[:, 3], np.array(data_vggt_four_img_focalloss_12['preds'])[:, 3], 'vggt epoch12 focal loss '),(data_dopp['gts'], data_dopp['preds'])])
     quit()
     
     # Extract predictions and ground truths

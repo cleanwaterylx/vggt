@@ -118,35 +118,73 @@ def load_images_as_tensor_from_list(image_list=[], interval=1, PIXEL_LIMIT=25500
     return torch.stack(tensor_list, dim=0)
 
 def get_connected_components(subgraph, cluster):
-    # 统一边表示（无向图要排序）
     def normalize_edge(u, v):
         return tuple(sorted((u, v)))
 
+    # 初始化
     all_edges = {normalize_edge(u, v) for u, v in subgraph.edges()}
-
     uncovered = set(all_edges)
     samples = []
 
-    all_4sets = list(combinations(cluster, 4))
+    neighbors = {n: set(subgraph.neighbors(n)) for n in subgraph.nodes()}
 
     while uncovered:
         best_set = None
         best_cover = set()
 
-        for nodes4 in all_4sets:
+        # ✅ Step 1: 选“最有价值”的边（简单启发：度数最大）
+        def edge_weight(e):
+            u, v = e
+            return len(neighbors[u]) + len(neighbors[v])
+
+        e = max(uncovered, key=edge_weight)
+        u, v = e
+
+        Nu = neighbors[u]
+        Nv = neighbors[v]
+
+        common = Nu & Nv  # 用于找 clique
+
+        candidates = []
+
+        # ✅ Step 2A: 优先找 K4（clique）
+        for w, x in combinations(common, 2):
+            nodes4 = {u, v, w, x}
+            candidates.append(nodes4)
+
+        # ✅ Step 2B: 不够再补普通连通4节点
+        if not candidates:
+            for w in Nu:
+                for x in Nv:
+                    nodes4 = {u, v, w, x}
+                    if len(nodes4) < 4:
+                        continue
+                    candidates.append(nodes4)
+
+        # ✅ Step 3: 选覆盖最多未覆盖边的
+        for nodes4 in candidates:
             edges_in_set = {
-                tuple(sorted(e))
-                for e in combinations(nodes4, 2)
+                normalize_edge(a, b)
+                for a, b in combinations(nodes4, 2)
+                if subgraph.has_edge(a, b)
             }
+
             cover = edges_in_set & uncovered
 
+            # 👉 clique 优先：边数更多自动占优
             if len(cover) > len(best_cover):
                 best_cover = cover
-                best_set = nodes4
+                best_set = tuple(nodes4)
+
+        # ✅ fallback（极端情况）
+        if not best_set:
+            u, v = next(iter(uncovered))
+            best_set = (u, v)
+            best_cover = {normalize_edge(u, v)}
 
         samples.append(best_set)
         uncovered -= best_cover
-    
+
     return samples
 
 def recursive_split(subgraph, cluster_nodes, name, model, device, dtype, depth=0):
@@ -187,7 +225,7 @@ def recursive_split(subgraph, cluster_nodes, name, model, device, dtype, depth=0
         for j in range(1, len(sample_nodes)):
             img1, img2 = sample_nodes[0], sample_nodes[j]
 
-            if subgraph.has_edge(img1, img2) and pred[j] < 0.5:
+            if subgraph.has_edge(img1, img2) and pred[j] < 0.8:
                 subgraph.remove_edge(img1, img2)
                 edge_modified = True
 
@@ -221,7 +259,8 @@ def recursive_split(subgraph, cluster_nodes, name, model, device, dtype, depth=0
 
 
 if __name__ == '__main__':
-    name = '/home/disk3_SSD/ylx/dataset_vggt_classification/street'
+
+    name = '/home/disk3_SSD/ylx/dataset_vggt_classification/arc_de_triomphe'
     parse_image_map_file(f'{name}/sparse/image_map.txt')
     # input()
     G = parse_image_pair_file(f'{name}/sparse/image_pair_inliers_relpose_final.txt')
@@ -246,7 +285,7 @@ if __name__ == '__main__':
     print(f"Using device: {device}")
     print(f"Using dtype: {dtype}")
     model = VGGT(enable_point=False, enable_track=False)
-    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer05111723_epoch5_focalloss.pt', map_location=device)['model'])
+    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer05111723_epoch12_focalloss_dopp_adam.pt', map_location=device)['model'])
     model.to(device)
     model.eval()
     print(f"Model loaded")
@@ -331,7 +370,7 @@ if __name__ == '__main__':
         pred = torch.sigmoid(pred).float().cpu().numpy() # [B, N] (0, 1)
         pred = pred.squeeze(0)
         print(node4, pred)
-        if pred[3] < 0.8:
+        if pred[3] < 0.9:
             delete_edges.append((node4[2], node4[3]))
         else:
             reserve_edges.append((node4[2], node4[3]))
@@ -347,5 +386,9 @@ if __name__ == '__main__':
         for img1, img2 in delete_edges:
             f.write(f"{img_name2id[img1]} {img_name2id[img2]}\n")
 
+    print("delete_edges:")
+    print(delete_edges)
+    print(len(delete_edges))
+    print("reserve_edges:")
     print(reserve_edges)
     print(len(reserve_edges))

@@ -89,7 +89,7 @@ if __name__ == '__main__':
     model = VGGT(enable_point=False, enable_track=False)
     # weight = torch.load('ckpt/checkpoint.pt')['model'].keys()
     # vggt_weight = {k: v for k, v in torch.load('ckpt/checkpoint.pt')['model'].items() if k in model.state_dict()}
-    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer05111723_epoch5_focalloss.pt', map_location=device)['model'])
+    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer05111723_epoch12_focalloss_dopp_adam.pt', map_location=device)['model'])
     model.to(device)
     model.eval()
     print(f"Model loaded")
@@ -203,7 +203,7 @@ if __name__ == '__main__':
     # print(f'TP: {tp}, FP: {fp}, TN: {tn}, FN: {fn}')
     # np.save('test_logits_visym.npy', logits)
     # np.save('test_gts_visym.npy', gts)
-    np.save('vggt_fourimg_add13_layer05111723_epoch5_focalloss_31.npy', {'logits': logits, 'gts': gts, 'preds': preds})
+    np.save('result/vggt_fourimg_add13_layer05111723_epoch12_focalloss_dopp_adam_31.npy', {'logits': logits, 'gts': gts, 'preds': preds})
     
         
         

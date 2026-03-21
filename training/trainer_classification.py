@@ -42,6 +42,29 @@ from train_utils.logging import setup_logging
 from train_utils.normalization import normalize_camera_extrinsics_and_points_batch
 from train_utils.optimizer import construct_optimizers
 
+class OptimizerWrapper:
+    def __init__(self, optimizer, schedulers=None):
+        self.optimizer = optimizer
+
+        if schedulers is None:
+            # 为每个 param_group 创建空 scheduler
+            self.schedulers = [{} for _ in optimizer.param_groups]
+        else:
+            self.schedulers = schedulers
+
+    def step(self, where=1.0, closure=None):
+        self.step_schedulers(where)
+        return self.optimizer.step(closure)
+
+    def zero_grad(self, *args, **kwargs):
+        return self.optimizer.zero_grad(*args, **kwargs)
+
+    def step_schedulers(self, where):
+        for i, param_group in enumerate(self.optimizer.param_groups):
+            for option, scheduler in self.schedulers[i].items():
+                param_group[option] = scheduler(where)
+
+
 
 class Trainer:
     """
@@ -151,7 +174,24 @@ class Trainer:
 
         # Construct optimizers (after moving model to device)
         if self.mode != "val":
-            self.optims = construct_optimizers(self.model, self.optim_conf)
+            # self.optims = construct_optimizers(self.model, self.optim_conf)
+            model_without_ddp = self.model.module if hasattr(self.model, "module") else self.model
+
+            # timm style param groups
+            param_groups = self.get_parameter_groups(
+                model_without_ddp,
+                0.05
+            )
+
+            base_optimizer = torch.optim.AdamW(
+                param_groups,
+                lr=1e-4,
+                betas=(0.9, 0.95)
+            )
+            optimizer = OptimizerWrapper(base_optimizer)
+
+            # 保持和原代码一致的结构
+            self.optims = [optimizer]
 
         # Load checkpoint if available or specified
         if self.checkpoint_conf.resume_checkpoint_path is not None:
@@ -166,6 +206,101 @@ class Trainer:
         
         # Barrier to ensure all processes are synchronized before starting
         dist.barrier()
+
+    def adjust_learning_rate(self, optimizer, epoch):
+        """Decay the learning rate with half-cycle cosine after warmup"""
+        
+        if epoch < 20:
+            lr = 1e-4 * epoch / 20 
+        else:
+            lr = 1e-6 + (1e-4- 1e-6) * 0.5 * \
+                (1. + math.cos(math.pi * (epoch - 20) / (self.max_epochs - 20)))
+                
+        for param_group in optimizer.param_groups:
+            if "lr_scale" in param_group:
+                param_group["lr"] = lr * param_group["lr_scale"]
+            else:
+                param_group["lr"] = lr
+                
+        return lr
+
+    def _get_num_layer_for_vit(self, var_name, enc_depth, dec_depth):
+        if var_name in ("cls_token", "mask_token", "pos_embed", "global_tokens"):
+            return 0
+        elif var_name.startswith("patch_embed"):
+            return 0
+        elif var_name.startswith("enc_blocks"):
+            layer_id = int(var_name.split('.')[1])
+            return layer_id + 1
+        elif var_name.startswith('decoder_embed') or var_name.startswith('enc_norm'): # part of the last black
+            return enc_depth
+        elif var_name.startswith('dec_blocks'):
+            layer_id = int(var_name.split('.')[1])
+            return enc_depth + layer_id + 1
+        elif var_name.startswith('dec_norm'): # part of the last block
+            return enc_depth + dec_depth
+        elif any(var_name.startswith(k) for k in ['head','prediction_head']):
+            return enc_depth + dec_depth + 1
+        else:
+            raise NotImplementedError(var_name)
+
+    def get_parameter_groups(self, model, weight_decay, layer_decay=1.0, skip_list=(), no_lr_scale_list=[]):
+        parameter_group_names = {}
+        parameter_group_vars = {}
+        enc_depth, dec_depth = None, None
+        # prepare layer decay values 
+        assert layer_decay==1.0 or 0.<layer_decay<1.
+        if layer_decay<1.:
+            enc_depth = model.enc_depth
+            dec_depth = model.dec_depth if hasattr(model, 'dec_blocks') else 0
+            num_layers = enc_depth+dec_depth
+            layer_decay_values = list(layer_decay ** (num_layers + 1 - i) for i in range(num_layers + 2))
+            
+        for name, param in model.named_parameters():
+            if not param.requires_grad:
+                continue  # frozen weights
+
+            # Assign weight decay values
+            if len(param.shape) == 1 or name.endswith(".bias") or name in skip_list:
+                group_name = "no_decay"
+                this_weight_decay = 0.
+            else:
+                group_name = "decay"
+                this_weight_decay = weight_decay
+
+            # Assign layer ID for LR scaling
+            if layer_decay<1.:
+                skip_scale = False
+                layer_id = self._get_num_layer_for_vit(name, enc_depth, dec_depth)
+                group_name = "layer_%d_%s" % (layer_id, group_name)
+                if name in no_lr_scale_list:
+                    skip_scale = True
+                    group_name = f'{group_name}_no_lr_scale'
+            else:
+                layer_id = 0
+                skip_scale = True
+
+            if group_name not in parameter_group_names:
+                if not skip_scale:
+                    scale = layer_decay_values[layer_id]
+                else:
+                    scale = 1.
+
+                parameter_group_names[group_name] = {
+                    "weight_decay": this_weight_decay,
+                    "params": [],
+                    "lr_scale": scale
+                }
+                parameter_group_vars[group_name] = {
+                    "weight_decay": this_weight_decay,
+                    "params": [],
+                    "lr_scale": scale
+                }
+
+            parameter_group_vars[group_name]["params"].append(param)
+            parameter_group_names[group_name]["params"].append(name)
+        print("Param groups = %s" % json.dumps(parameter_group_names, indent=2))
+        return list(parameter_group_vars.values())
 
     def _setup_timers(self):
         """Initializes timers for tracking total elapsed time."""
@@ -495,6 +630,17 @@ class Trainer:
             if data_iter % self.logging_conf.log_freq == 0:
                 progress.display(data_iter)
 
+        # ---- Log epoch-level losses to TensorBoard ----
+        for name, meter in loss_meters.items():
+            if "loss" not in name.lower():
+                continue
+
+            epoch_loss = meter.avg
+            self.tb_writer.log(
+                os.path.join("EpochLoss", name),
+                epoch_loss,
+                self.epoch,
+            )
 
         return True
 
@@ -575,17 +721,25 @@ class Trainer:
 
             # compute gradient and do SGD step
             assert data_iter <= limit_train_batches  # allow for off by one errors
-            exact_epoch = self.epoch + float(data_iter) / limit_train_batches
-            self.where = float(exact_epoch) / self.max_epochs
+            # exact_epoch = self.epoch + float(data_iter) / limit_train_batches
+            # self.where = float(exact_epoch) / self.max_epochs
             
-            assert self.where <= 1 + self.EPSILON
-            if self.where < 1.0:
+            # assert self.where <= 1 + self.EPSILON
+            # if self.where < 1.0:
+            #     for optim in self.optims:
+            #         optim.step_schedulers(self.where)
+            # else:
+            #     logging.warning(
+            #         f"Skipping scheduler update since the training is at the end, i.e, {self.where} of [0,1]."
+            #     )
+
+            # ---- per iteration lr schedule ----
+            epoch_f = self.epoch + data_iter / limit_train_batches
+
+            if data_iter % self.accum_steps == 0:
                 for optim in self.optims:
-                    optim.step_schedulers(self.where)
-            else:
-                logging.warning(
-                    f"Skipping scheduler update since the training is at the end, i.e, {self.where} of [0,1]."
-                )
+                    self.adjust_learning_rate(optim.optimizer, epoch_f)
+
                     
             # Log schedulers
             if self.steps[phase] % self.logging_conf.log_freq == 0:
@@ -638,6 +792,17 @@ class Trainer:
             if data_iter % self.logging_conf.log_freq == 0:
                 progress.display(data_iter)
 
+        # ---- Log epoch-level losses to TensorBoard ----
+        for name, meter in loss_meters.items():
+            if "loss" not in name.lower():
+                continue
+
+            epoch_loss = meter.avg
+            self.tb_writer.log(
+                os.path.join("EpochLoss", name),
+                epoch_loss,
+                self.epoch,
+            )
         return True
 
     def _run_steps_on_batch_chunks(
