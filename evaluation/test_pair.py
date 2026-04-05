@@ -82,6 +82,7 @@ if __name__  == '__main__':
     print(f"Using dtype: {dtype}")
     model = VGGT(enable_point=False, enable_track=False)
     model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer05111723_epoch12_focalloss_dopp_adam.pt', map_location=device)['model'])
+    # model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer05111723_epoch12_focalloss_dopp_adam_dopp_dataset.pt', map_location=device)['model'])
     model.to(device)
     model.eval()
     print(f"Model loaded")

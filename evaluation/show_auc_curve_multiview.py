@@ -60,10 +60,27 @@ if __name__ == "__main__":
     # data_vggt_four_img_3 = np.load('vggt_fourimg_add13_layer05111723_epoch3_focalloss_31.npy', allow_pickle=True).item()
     # data_vggt_four_img_4 = np.load('vggt_fourimg_add13_layer05111723_epoch4_focalloss_31.npy', allow_pickle=True).item()
     # data_vggt_four_img_5 = np.load('vggt_fourimg_add13_layer05111723_epoch5_focalloss_31.npy', allow_pickle=True).item()
-    data_vggt_four_img_focalloss_3 = np.load('result/vggt_fourimg_add13_layer05111723_epoch3_focalloss_31.npy', allow_pickle=True).item()
-    data_vggt_four_img_focalloss_12 = np.load('result/vggt_fourimg_add13_layer05111723_epoch12_focalloss_dopp_adam_31.npy', allow_pickle=True).item()
-    data_dopp = np.load('../doppelgangers-plusplus/eval_visym_ap0.9917_auc0.9902_prec85_1.0000_recall95_0.9130.npy', allow_pickle=True).item()
-    
+    # data_vggt_four_img_focalloss_3 = np.load('result/vggt_fourimg_add13_layer05111723_epoch3_focalloss_31.npy', allow_pickle=True).item()
+    # data_vggt_four_img_focalloss_12 = np.load('result/vggt_fourimg_add13_layer05111723_epoch12_focalloss_dopp_adam_31.npy', allow_pickle=True).item()
+    # data_dopp = np.load('../doppelgangers-plusplus/eval_visym_ap0.9917_auc0.9902_prec85_1.0000_recall95_0.9130.npy', allow_pickle=True).item()
+
+    data_vggt_four_img_focalloss_3 = np.load('result/vggt_fourimg_add13_layer05111723_epoch3_focalloss_dopp_adam_dopp_dataset_11_test_dopp_test_train_min.npy', allow_pickle=True).item()
+    data_dopp = np.load('../doppelgangers-plusplus/eval_dg_ap0.9818_auc0.9814_prec85_0.9831_recall95_0.7226.npy', allow_pickle=True).item()
+
+    # 可能是pair中有gif
+
+    import numpy as np
+    from collections import Counter
+
+    idx = 4817
+    del data_vggt_four_img_focalloss_3['preds'][4817]
+    del data_vggt_four_img_focalloss_3['gts'][4817]
+    gts = np.array(data_vggt_four_img_focalloss_3['gts'], dtype=float)[:, 1]
+    preds = np.array(data_vggt_four_img_focalloss_3['preds'], dtype=float)[:, 0]
+    preds_less = preds[preds < 0.95]
+    print(preds_less)
+
+
     
     # draw_roc_curve([(np.array(data_vggt_four_img_1['gts'])[:, 3], np.array(data_vggt_four_img_1['preds'])[:, 3], 'vggt epoch1 '),
     #                 (np.array(data_vggt_four_img_2['gts'])[:, 3], np.array(data_vggt_four_img_2['preds'])[:, 3], 'vggt epoch2 '),
@@ -71,12 +88,11 @@ if __name__ == "__main__":
     #                 (np.array(data_vggt_four_img_4['gts'])[:, 3], np.array(data_vggt_four_img_4['preds'])[:, 3], 'vggt epoch4 '),
     #                 (np.array(data_vggt_four_img_5['gts'])[:, 3], np.array(data_vggt_four_img_5['preds'])[:, 3], 'vggt epoch5 '),
     #                  (np.array(data_dopp['gts']), np.array(data_dopp['preds']), 'doppelganger++ ')])
-    draw_roc_curve([(np.array(data_vggt_four_img_focalloss_3['gts'])[:, 3], np.array(data_vggt_four_img_focalloss_3['preds'])[:, 3], 'vggt epoch3 focal loss '),
-                    (np.array(data_vggt_four_img_focalloss_12['gts'])[:, 3], np.array(data_vggt_four_img_focalloss_12['preds'])[:, 3], 'vggt epoch12 focal loss '),
+    draw_roc_curve([(gts, preds, 'vggt epoch3 focal loss '),
                      (np.array(data_dopp['gts']), np.array(data_dopp['preds']), 'doppelganger++ ')])
 
-    draw_pr_curve([(np.array(data_vggt_four_img_focalloss_3['gts'])[:, 3], np.array(data_vggt_four_img_focalloss_3['preds'])[:, 3], 'vggt epoch3 focal loss '),
-                    (np.array(data_vggt_four_img_focalloss_12['gts'])[:, 3], np.array(data_vggt_four_img_focalloss_12['preds'])[:, 3], 'vggt epoch12 focal loss '),(data_dopp['gts'], data_dopp['preds'])])
+    draw_pr_curve([(np.array(data_vggt_four_img_focalloss_3['gts'])[:, 1], np.array(data_vggt_four_img_focalloss_3['preds'])[:, 1], 'vggt epoch3 focal loss '),
+                        (np.array(data_dopp['gts']), np.array(data_dopp['preds']), 'doppelganger++ ')])
     quit()
     
     # Extract predictions and ground truths

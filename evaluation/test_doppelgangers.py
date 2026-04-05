@@ -13,7 +13,6 @@ from tqdm import tqdm
 from vggt.models.vggt_classification import VGGT
 
 
-
 def load_images_as_tensor_from_list(image_list=[], interval=1, PIXEL_LIMIT=255000):
     """
     Loads images from a directory or video, resizes them to a uniform size,
@@ -74,12 +73,13 @@ def load_images_as_tensor_from_list(image_list=[], interval=1, PIXEL_LIMIT=25500
 
 if __name__ == '__main__':
     rng = np.random.default_rng(42)
-    data_root='/home/disk8/dopp_data/visymscenes'
-    dopp_pair = np.load('training/pair_data/test_pairs_visym_with_intrinsics.npy', allow_pickle=True)
+    data_root='/home/disk8/dopp_data/'
+    dopp_pair = np.load('training/pair_data/test_train_pairs.npy', allow_pickle=True)
     # shuffle the pairs
     np.random.seed(42) 
     np.random.shuffle(dopp_pair)
     print(f'Number of test DoppPairs: {len(dopp_pair)}')
+
     
     dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -89,77 +89,24 @@ if __name__ == '__main__':
     model = VGGT(enable_point=False, enable_track=False)
     # weight = torch.load('ckpt/checkpoint.pt')['model'].keys()
     # vggt_weight = {k: v for k, v in torch.load('ckpt/checkpoint.pt')['model'].items() if k in model.state_dict()}
-    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer05111723_epoch12_focalloss_dopp_adam_dopp_dataset.pt', map_location=device)['model'])
+    model.load_state_dict(torch.load('ckpt/checkpoint_fourimg_add13_layer05111723_epoch3_focalloss_dopp_adam_dopp_dataset.pt', map_location=device)['model'])
     model.to(device)
     model.eval()
     print(f"Model loaded")
     
     gts = []
     preds = []
-    inverse = 0
     logits = []
     all_true = 0
     not_all_true = 0
     for pair in tqdm(dopp_pair):
-        image_0_relative_path, image_1_relative_path, pos_neg_pair_label, intrinsics = pair
-        pos_neg_pair_label = int(pos_neg_pair_label)
-        scene1 = os.path.join(*image_0_relative_path.split('/')[:3])  # get the scene from the first image path
-        scene2 = os.path.join(*image_1_relative_path.split('/')[:3])
-        base_path1 = os.path.join(data_root, scene1)
-        base_path2 = os.path.join(data_root, scene2)
-        imgs_1 = sorted([file for file in os.listdir(base_path1) if file.endswith('.jpg')])
-        imgs_2 = sorted([file for file in os.listdir(base_path2) if file.endswith('.jpg')])
-        # print(scene)
-        # print(len(imgs))
-        # print(imgs[0], imgs[1])
-
-        image_0_name = image_0_relative_path.split('/')[-1]
-        image_1_name = image_1_relative_path.split('/')[-1]
-        idx_1 = imgs_1.index(image_0_name)
-        idx_2 = imgs_2.index(image_1_name)
-        # print(image_0_name)
-        # print('Image 0 index in the sequence:', idx)
-
-        #  set image_0 as anchor ,idx random +- 5
-        # todo random step or sample 
-        step = 3
-        idxs_1 = list(range(max(0, idx_1 - step), min(len(imgs_1), idx_1 + step + 1)))
-        idxs_1.remove(idx_1)
-        idxs_1 = [idx_1] + idxs_1
-        idxs_2 = list(range(max(0, idx_2 - step), min(len(imgs_2), idx_2 + step + 1)))
-        idxs_2.remove(idx_2)
-        idxs_2 = idxs_2 + [idx_2]
-        # print(img_per_seq)
-        # print(len(idxs_1), len(idxs_2))
-        
-        step = 2
-        if step == 0:
-            idxs_1 = [idx_1]
-            idxs_2 = [idx_2]
-        elif step == 1:
-            idxs_1 = [idx_1]
-            idxs_2 = list(range(max(0, idx_2), min(len(imgs_2), idx_2 + 2)))
-        else:
-            idxs_1 = list(range(max(0, idx_1-2), min(len(imgs_1), idx_1 + 1)))
-            idxs_2 = list(range(max(0, idx_2), min(len(imgs_2), idx_2 + 1)))
-        
-        selected_imgs = [os.path.join(base_path1, imgs_1[j]) for j in idxs_1]
-        labels = [1] * len(selected_imgs)
-        selected_imgs += [os.path.join(base_path2, imgs_2[j]) for j in idxs_2]
-        labels += [1 if pos_neg_pair_label else 0] * len(idxs_2)
-        
-        if len(selected_imgs) < 4:
-            # print(f"Warning: Only {len(selected_imgs)} images selected for pair ({image_0_relative_path}, {image_1_relative_path}). Expected 4.")
-            continue
-        
-        # combined = list(zip(selected_imgs, labels))
-
-        # np.random.default_rng(42).shuffle(combined)
-        
-        # selected_imgs, labels = map(list, zip(*combined))
-        
+        image_0_relative_path, image_1_relative_path, pos_neg_pair_label = pair
+        image_0_name = os.path.join(data_root, image_0_relative_path)
+        image_1_name = os.path.join(data_root, image_1_relative_path)
+        selected_imgs = [image_0_name, image_1_name]
         images_tensor = load_images_as_tensor_from_list(selected_imgs)
         images_tensor = images_tensor.to(device)
+        labels = [1, pos_neg_pair_label]
         
         with torch.no_grad():
             with torch.amp.autocast('cuda', dtype=dtype):
@@ -173,26 +120,30 @@ if __name__ == '__main__':
         # print(pred)
         # print(labels)
         # input()
-        
-        if labels[0] == 1 and labels[1] == 1 and labels[2] == 1 and labels[3] == 0:
-            if pred[0] >= 0.5 and pred[1] >= 0.5 and pred[2] >= 0.5 and pred[3] < 0.5:
-                all_true += 1
-            else:
-                not_all_true += 1
-                print(labels, pred)
-                
+
+        # if pred[-1] >= 0.5 and labels[-1] == 0:
+        #     print(f"False Positive: {image_0_name}, {image_1_name}, Pred: {pred[-1]:.4f}, Label: {labels[-1]}")
+        # print(f"Pred: {pred[-1]:.4f}, Label: {labels[-1]}")
+
+        images_tensor = images_tensor.flip(0)
+
+        with torch.no_grad():
+            with torch.amp.autocast('cuda', dtype=dtype):
+                res = model(images_tensor[None]) # Add batch dimension
+        # print(res['logits'].shape)
+        pred1 = res['logits']   # [B, N]
+        pred1 = torch.sigmoid(pred1).float().cpu().numpy() # [B, N] (0, 1)
+        pred1 = pred1.squeeze(0)
+
+        if pred1[-1] < pred[-1]:
+            pred = pred1       
         
         logits.append(pred)
         # gts.append(pos_neg_pair_label)
         # preds.append(pred[-1])
         gts.append(labels)
         preds.append(pred)
-        # if pred[0] >= 0.5 and pred[-1] >= 0.5:  # Both anchor and positive samples are predicted as positive
-        #     preds.append(1)
-        # else:
-        #     preds.append(0)
         
-    print(f"Total pairs: {len(gts)}, all true: {all_true}, Not all true: {not_all_true}, Accuracy: {all_true / (all_true + not_all_true):.4f}")
             
     # Calculate True Positives, False Positives, True Negatives, and False Negatives
     # tp = np.sum((np.array(preds) == 1) & (np.array(gts) == 1))
@@ -203,7 +154,7 @@ if __name__ == '__main__':
     # print(f'TP: {tp}, FP: {fp}, TN: {tn}, FN: {fn}')
     # np.save('test_logits_visym.npy', logits)
     # np.save('test_gts_visym.npy', gts)
-    np.save('result/vggt_fourimg_add13_layer05111723_epoch12_focalloss_dopp_adam_dopp_dataset_31.npy', {'logits': logits, 'gts': gts, 'preds': preds})
+    np.save('result/vggt_fourimg_add13_layer05111723_epoch3_focalloss_dopp_adam_dopp_dataset_11_test_dopp_test_train_min.npy', {'logits': logits, 'gts': gts, 'preds': preds})
     
         
         

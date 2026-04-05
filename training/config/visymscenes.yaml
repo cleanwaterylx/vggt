@@ -3,7 +3,7 @@ defaults:
 
 exp_name: exp001
 img_size: 518
-num_workers: 8
+num_workers: 1
 seed_value: 42
 accum_steps: 1    # We did not use gradient accumulation in our training, while if you suffer from OOM, you can try to use it.
 patch_size: 14
@@ -28,9 +28,12 @@ data:
     dataset:
       _target_: data.composed_dataset_classification.ComposedDataset
       dataset_configs:
-        - _target_: data.datasets.visymscenes.VisymScenesDataset
+        # - _target_: data.datasets.visymscenes.VisymScenesDataset
+        #   split: train
+        #   VISYMSCENES_DIR: /home/disk8/dopp_data/visymscenes
+        - _target_: data.datasets.doppelgangers.DoppelgangersDataset
           split: train
-          VISYMSCENES_DIR: /home/disk8/dopp_data/visymscenes
+          DOPPELGANGERS_DIR: /home/disk8/dopp_data
   val:
     _target_: data.dynamic_dataloader.DynamicTorchDataset
     num_workers: ${num_workers}
@@ -43,9 +46,12 @@ data:
     dataset:
       _target_: data.composed_dataset_classification.ComposedDataset
       dataset_configs:
-        - _target_: data.datasets.visymscenes.VisymScenesDataset
+        # - _target_: data.datasets.visymscenes.VisymScenesDataset
+        #   split: test
+        #   VISYMSCENES_DIR: /home/disk8/dopp_data/visymscenes
+        - _target_: data.datasets.doppelgangers.DoppelgangersDataset
           split: test
-          VISYMSCENES_DIR: /home/disk8/dopp_data/visymscenes
+          DOPPELGANGERS_DIR: /home/disk8/dopp_data
 
 
 logging:
